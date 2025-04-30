@@ -10,11 +10,13 @@ const PORT_STR = ":8080"
 func main() {
 	fmt.Println("hello world")
 
-	s := http.NewServeMux()
+	mux := http.NewServeMux()
 	server := http.Server{
 		Addr:    ":8080",
-		Handler: s,
+		Handler: mux,
 	}
+
+	mux.Handle("/", http.FileServer(http.Dir(".")))
 
 	fmt.Println("Server starting on", "http://localhost"+PORT_STR)
 	err := server.ListenAndServe()
