@@ -32,18 +32,18 @@ func main() {
 
 	mux.Handle("/app/", apiConfig.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
 
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	})
 
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 		w.Write([]byte(fmt.Sprintf("Hits: %d", apiConfig.hitCount.Load())))
 	})
-	mux.HandleFunc("/reset", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("POST /reset", func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(200)
 		apiConfig.hitCount.Store(0)
 	})
