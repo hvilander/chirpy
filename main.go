@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"sync/atomic"
 )
 
@@ -11,6 +13,13 @@ const PORT_STR = ":8080"
 
 type apiConfig struct {
 	hitCount atomic.Int32
+}
+
+type jsonRes struct {
+	Error       string `json:"error"`
+	Valid       bool   `json:"valid"`
+	Body        string `json:"body"`
+	CleanedBody string `json:"cleaned_body"`
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -50,18 +59,8 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /api/validate_chirp", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Println("hi")
-		type jsonBody struct {
-			Body string `json:"body"`
-		}
-
-		type jsonRes struct {
-			Error string `json:"error"`
-			Valid bool   `json:"valid"`
-		}
-
 		decoder := json.NewDecoder(req.Body)
-		params := jsonBody{}
+		params := jsonRes{}
 		err := decoder.Decode(&params)
 		if err != nil {
 			fmt.Println("error decoding params:", err)
@@ -69,26 +68,25 @@ func main() {
 			return
 		}
 
-		if len(params.Body) > 140 {
-			dat, err := json.Marshal(jsonRes{Error: "Chirp is too long"})
-			if err != nil {
-				fmt.Println("error marshaling:", err)
-				w.WriteHeader(500)
-				return
-			}
-			w.WriteHeader(400)
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(dat)
-		} else {
-			dat, err := json.Marshal(jsonRes{Valid: true})
-			if err != nil {
-				fmt.Println("error marshaling:", err)
-				w.WriteHeader(500)
-				return
-			}
-			w.WriteHeader(200)
-			w.Write(dat)
+		chirp := params.Body
+
+		if len(chirp) > 140 {
+			respondWithError(w, 400, "Chirp is too long")
 		}
+
+		profane := []string{"kerfuffle", "sharbert", "fornax"}
+
+		words := strings.Split(chirp, " ")
+		fmt.Println(words)
+
+		for i, w := range words {
+			if slices.Contains(profane, strings.ToLower(w)) {
+				words[i] = "****"
+			}
+		}
+
+		cleaned := strings.Join(words, " ")
+		respondWithJson(w, 200, jsonRes{CleanedBody: cleaned})
 
 	})
 
@@ -98,4 +96,30 @@ func main() {
 		fmt.Println(err)
 	}
 
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	dat, err := json.Marshal(jsonRes{Error: msg})
+	if err != nil {
+		fmt.Println("error marshaling:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
+}
+
+func respondWithJson(w http.ResponseWriter, code int, payload interface{}) {
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Println("error marshaling:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
 }
