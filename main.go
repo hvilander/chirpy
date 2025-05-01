@@ -1,18 +1,25 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
+
+	dbmod "github.com/hvilander/chirpy/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 const PORT_STR = ":8080"
 
 type apiConfig struct {
 	hitCount atomic.Int32
+	db       *dbmod.Queries
 }
 
 type jsonRes struct {
@@ -32,13 +39,17 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 
 func main() {
 	fmt.Println("hello world")
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	database, err := sql.Open("postgres", dbURL)
+	apiConfig := apiConfig{}
+	apiConfig.db = dbmod.New(database)
 
 	mux := http.NewServeMux()
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
 	}
-	apiConfig := apiConfig{}
 
 	mux.Handle("/app/", apiConfig.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
 
@@ -91,7 +102,7 @@ func main() {
 	})
 
 	fmt.Println("Server starting on", "http://localhost"+PORT_STR)
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		fmt.Println(err)
 	}
