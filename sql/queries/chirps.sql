@@ -4,3 +4,7 @@ VALUES (gen_random_uuid(), now(), now(), $1, $2)
 
 RETURNING *;
 
+
+-- name: GetAllChirps :many
+SELECT * from chirps;
+

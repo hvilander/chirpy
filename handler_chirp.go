@@ -29,6 +29,29 @@ func getNullUUID(id uuid.UUID) uuid.NullUUID {
 	}
 }
 
+func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(req.Context())
+	if err != nil {
+		fmt.Println("error getting chiprs:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	resChirps := make([]chirpCreatedRes, len(chirps))
+	for i, c := range chirps {
+		resChirps[i] = chirpCreatedRes{
+			ID:        c.ID.String(),
+			CreatedAt: c.CreatedAt.Time.String(),
+			UpdatedAt: c.UpdatedAt.Time.String(),
+			Body:      c.Body,
+			UserId:    c.UserID.UUID.String(),
+		}
+	}
+
+	respondWithJson(w, 200, resChirps)
+
+}
+
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	params := postChirpBody{}
