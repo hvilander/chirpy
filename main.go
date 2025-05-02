@@ -47,7 +47,8 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiConfig.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiConfig.handlerReset)
 	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
-	mux.HandleFunc("POST /api/users", apiConfig.handlerUsers)
+	mux.HandleFunc("POST /api/users", apiConfig.handlerCreateUser)
+	mux.HandleFunc("POST /api/chirps", apiConfig.handlerCreateChirp)
 
 	fmt.Println("Server starting on", "http://localhost"+PORT_STR)
 	err = server.ListenAndServe()

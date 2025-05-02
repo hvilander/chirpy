@@ -18,7 +18,7 @@ type userCreatedRes struct {
 	Email     string `json:"email"`
 }
 
-func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, req *http.Request) {
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
 	platform := os.Getenv("PLATFORM")
 
 	if platform != "dev" {
