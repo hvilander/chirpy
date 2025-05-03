@@ -29,6 +29,41 @@ func getNullUUID(id uuid.UUID) uuid.NullUUID {
 	}
 }
 
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, req *http.Request) {
+
+	chirpId := req.PathValue("chirpID")
+	if chirpId == "" {
+		fmt.Println("error getting chipr: no id provided")
+		w.WriteHeader(400)
+		return
+	}
+
+	chirpUUID, err := uuid.Parse(chirpId)
+	if err != nil {
+		fmt.Println("error getting chirp:", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	c, err := cfg.db.GetChirpById(req.Context(), chirpUUID)
+	if err != nil {
+		fmt.Println("chirpUUID", chirpUUID)
+		fmt.Println("error querying chirp:", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	resChirp := chirpCreatedRes{
+		ID:        c.ID.String(),
+		CreatedAt: c.CreatedAt.Time.String(),
+		UpdatedAt: c.UpdatedAt.Time.String(),
+		Body:      c.Body,
+		UserId:    c.UserID.UUID.String(),
+	}
+
+	respondWithJson(w, 200, resChirp)
+}
+
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Request) {
 	chirps, err := cfg.db.GetAllChirps(req.Context())
 	if err != nil {
@@ -63,6 +98,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	}
 
 	userID, err := uuid.Parse(params.UserId)
+	fmt.Println(userID)
 	if err != nil {
 		fmt.Println("error parsing user id:", err)
 		w.WriteHeader(500)
