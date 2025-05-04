@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,6 +27,13 @@ func getNullUUID(id uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{
 		UUID:  id,
 		Valid: true,
+	}
+}
+
+func getNullString(s string) sql.NullString {
+	return sql.NullString{
+		String: s,
+		Valid:  true,
 	}
 }
 
