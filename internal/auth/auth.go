@@ -40,7 +40,7 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, registeredClaims)
 
 	signed, err := token.SignedString([]byte(tokenSecret))
-	fmt.Printf("\nfor userID: %s\nsigned: %s\nerr: %s\n", userID, signed, err)
+
 	return signed, err
 }
 

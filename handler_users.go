@@ -35,9 +35,9 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(500)
 		return
 	}
+
 	user, err := cfg.db.GetUserByEmail(req.Context(), params.Email)
 	if err != nil {
-
 		fmt.Println("error user:", params.Email, "not found:", err)
 		w.WriteHeader(500)
 		return
@@ -145,8 +145,6 @@ func (cfg *apiConfig) handleRefresh(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fmt.Println("bHEADER", bTok)
-
 	//check for it in the db
 	refreshToken, err := cfg.db.GetRefreshTokenById(req.Context(), bTok)
 	if err != nil {
@@ -155,7 +153,6 @@ func (cfg *apiConfig) handleRefresh(w http.ResponseWriter, req *http.Request) {
 		respondWithError(w, 401, "getting db ref tok failed")
 		return
 	}
-	fmt.Println(refreshToken)
 
 	if refreshToken.RevokedAt.Valid {
 		fmt.Println("token revoked")

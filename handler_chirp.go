@@ -106,14 +106,14 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 		w.WriteHeader(500)
 		return
 	}
+
 	bearer, err := auth.GetBearerToken(req.Header)
 	if err != nil {
 		fmt.Println("error getting BearerToken from header:", err)
+		w.WriteHeader(401)
 		return
-
 	}
 
-	// userUUID is _ for now
 	userID, err := auth.ValidateJWT(bearer, cfg.secret)
 	if err != nil {
 		fmt.Println("invalid token:", err)
@@ -130,6 +130,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	if err != nil {
 		fmt.Println(err)
 		respondWithError(w, 500, "error creating chirp")
+		return
 	}
 
 	responseBody := chirpCreatedRes{
