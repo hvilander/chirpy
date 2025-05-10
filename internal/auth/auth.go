@@ -1,7 +1,12 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,7 +16,7 @@ import (
 
 func HashPassword(password string) (string, error) {
 
-	dat, err := bcrypt.GenerateFromPassword([]byte(password), 6)
+	dat, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
@@ -27,38 +32,72 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 
 	registeredClaims := jwt.RegisteredClaims{
 		Issuer:    "chirpy",
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiresIn)),
+		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiresIn)),
 		Subject:   userID.String(),
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, registeredClaims)
-	tokenString, err := token.SignedString([]byte(tokenSecret))
-	if err != nil {
-		return "", err
-	}
 
-	return tokenString, nil
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, registeredClaims)
+
+	signed, err := token.SignedString([]byte(tokenSecret))
+	fmt.Printf("\nfor userID: %s\nsigned: %s\nerr: %s\n", userID, signed, err)
+	return signed, err
 }
 
 func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
-
 	claims := jwt.RegisteredClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(tokenSecret), nil
-	})
-	if !token.Valid {
-		return uuid.Nil, fmt.Errorf("invalid token")
 
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&claims,
+		func(token *jwt.Token) (interface{}, error) { return []byte(tokenSecret), nil },
+	)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("For Token: %s \nError parsing with claims: %w\n", tokenString, err)
 	}
 
-	strUUID, err := claims.GetSubject()
+	strUUID, err := token.Claims.GetSubject()
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	return uuid.Parse(strUUID)
+	issuer, err := token.Claims.GetIssuer()
+	if err != nil {
+		return uuid.Nil, err
+	}
 
+	if issuer != "chirpy" {
+		return uuid.Nil, errors.New("invalid issuer")
+	}
+
+	id, err := uuid.Parse(strUUID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	return id, nil
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	bTok := headers.Get("Authorization")
+	if bTok == "" {
+		return "", fmt.Errorf("no auth header")
+	}
+	spt := strings.Split(bTok, " ")
+
+	if spt[0] != "Bearer" || len(spt) != 2 {
+		return "", fmt.Errorf("token parsing error")
+	}
+	return spt[1], nil
+}
+
+func MakeRefreshToken() (string, error) {
+	randN := make([]byte, 32)
+	_, err := rand.Read(randN)
+	if err != nil {
+		return "", fmt.Errorf("rand err: %w", err)
+
+	}
+	encoded := hex.EncodeToString(randN)
+	return encoded, nil
 }

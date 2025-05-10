@@ -7,12 +7,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/hvilander/chirpy/internal/auth"
 	"github.com/hvilander/chirpy/internal/database"
 )
 
 type postChirpBody struct {
 	Body   string `json:"body"`
 	UserId string `json:"user_id"`
+	Token  string `json:"token"`
 }
 
 type chirpCreatedRes struct {
@@ -104,12 +106,18 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 		w.WriteHeader(500)
 		return
 	}
-
-	userID, err := uuid.Parse(params.UserId)
-	fmt.Println(userID)
+	bearer, err := auth.GetBearerToken(req.Header)
 	if err != nil {
-		fmt.Println("error parsing user id:", err)
-		w.WriteHeader(500)
+		fmt.Println("error getting BearerToken from header:", err)
+		return
+
+	}
+
+	// userUUID is _ for now
+	userID, err := auth.ValidateJWT(bearer, cfg.secret)
+	if err != nil {
+		fmt.Println("invalid token:", err)
+		w.WriteHeader(401)
 		return
 	}
 

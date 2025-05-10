@@ -32,12 +32,9 @@ func main() {
 	fmt.Println("hello world")
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
-	SECRET := os.Getenv("SECRET")
 	database, err := sql.Open("postgres", dbURL)
 	apiConfig := apiConfig{}
-
 	apiConfig.db = dbmod.New(database)
-	apiConfig.secret = SECRET
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -56,8 +53,6 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiConfig.handlerGetAllChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiConfig.handlerGetChirpByID)
 	mux.HandleFunc("POST /api/login", apiConfig.handleLogin)
-	mux.HandleFunc("POST /api/refresh", apiConfig.handleRefresh)
-	mux.HandleFunc("POST /api/revoke", apiConfig.handleRevoke)
 
 	fmt.Println("Server starting on", "http://localhost"+PORT_STR)
 	err = server.ListenAndServe()

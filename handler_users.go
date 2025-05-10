@@ -1,10 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/hvilander/chirpy/internal/auth"
 	"github.com/hvilander/chirpy/internal/database"
@@ -15,11 +17,13 @@ type postUserBody struct {
 	Password string `json:"password"`
 }
 
-type userCreatedRes struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	Email     string `json:"email"`
+type response struct {
+	ID           string `json:"id"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+	Email        string `json:"email"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
@@ -46,11 +50,42 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resUser := userCreatedRes{
-		ID:        user.ID.String(),
-		CreatedAt: user.CreatedAt.Time.String(),
-		UpdatedAt: user.UpdatedAt.Time.String(),
-		Email:     user.Email,
+	expireTime, err := time.ParseDuration("1h")
+
+	token, err := auth.MakeJWT(user.ID, cfg.secret, expireTime)
+	if err != nil {
+		w.WriteHeader(403)
+		return
+	}
+
+	refreshToken, err := auth.MakeRefreshToken()
+	expireDuration, err := time.ParseDuration("1440h")
+	timeTheTokExpires := time.Now().Add(expireDuration)
+	nullTime := sql.NullTime{
+		// 1440 hours is 60 days
+		Time:  timeTheTokExpires,
+		Valid: true,
+	}
+	args := database.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    getNullUUID(user.ID),
+		ExpiresAt: nullTime,
+	}
+
+	savedRefreshToken, err := cfg.db.CreateRefreshToken(req.Context(), args)
+	if err != nil {
+		fmt.Println("error saving refresh token: ", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	resUser := response{
+		ID:           user.ID.String(),
+		CreatedAt:    user.CreatedAt.Time.String(),
+		UpdatedAt:    user.UpdatedAt.Time.String(),
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: savedRefreshToken.Token,
 	}
 
 	respondWithJson(w, 200, resUser)
@@ -91,7 +126,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		respondWithError(w, 500, "error creating user")
 	}
 
-	responseBody := userCreatedRes{
+	responseBody := response{
 		ID:        user.ID.String(),
 		CreatedAt: user.CreatedAt.Time.String(),
 		UpdatedAt: user.UpdatedAt.Time.String(),
@@ -99,4 +134,70 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 	}
 
 	respondWithJson(w, 201, responseBody)
+}
+
+func (cfg *apiConfig) handleRefresh(w http.ResponseWriter, req *http.Request) {
+	//get token off of headers
+	bTok, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		fmt.Println(err)
+		respondWithError(w, 500, "error with refresh header")
+		return
+	}
+
+	fmt.Println("bHEADER", bTok)
+
+	//check for it in the db
+	refreshToken, err := cfg.db.GetRefreshTokenById(req.Context(), bTok)
+	if err != nil {
+		fmt.Println(err)
+		//if it doesnt exist or has expired respond with a 401
+		respondWithError(w, 401, "getting db ref tok failed")
+		return
+	}
+	fmt.Println(refreshToken)
+
+	if refreshToken.RevokedAt.Valid {
+		fmt.Println("token revoked")
+		respondWithError(w, 401, "getting db ref tok failed")
+		return
+	}
+
+	if refreshToken.ExpiresAt.Valid && refreshToken.ExpiresAt.Time.Before(time.Now()) {
+		fmt.Println("token revoked")
+		respondWithError(w, 401, "getting db ref tok failed")
+		return
+	}
+
+	//otherwise respond with a 200 and a new access token {token: alskdjflksfl}
+	expireTime, err := time.ParseDuration("1h")
+
+	userID := refreshToken.UserID.UUID
+	accessToken, err := auth.MakeJWT(userID, cfg.secret, expireTime)
+	if err != nil {
+		w.WriteHeader(403)
+		return
+	}
+
+	responseBody := response{
+		Token: accessToken,
+	}
+	respondWithJson(w, 200, responseBody)
+}
+
+func (cfg *apiConfig) handleRevoke(w http.ResponseWriter, req *http.Request) {
+	bTok, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		fmt.Println(err)
+		respondWithError(w, 500, "error with refresh header")
+	}
+
+	err = cfg.db.RevokeRefreshToken(req.Context(), bTok)
+	if err != nil {
+		fmt.Println(err)
+		respondWithError(w, 500, "error with refresh header")
+	}
+
+	w.WriteHeader(204)
+
 }
