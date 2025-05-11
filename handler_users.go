@@ -198,3 +198,63 @@ func (cfg *apiConfig) handleRevoke(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(204)
 
 }
+
+func (cfg *apiConfig) handlePutUser(w http.ResponseWriter, req *http.Request) {
+	//get token off of headers
+	bTok, err := auth.GetBearerToken(req.Header)
+	if bTok == "" {
+		respondWithError(w, 401, "missing auth header")
+		return
+	}
+	if err != nil {
+		fmt.Println(err)
+		respondWithError(w, 500, "error with refresh header")
+		return
+	}
+
+	userID, err := auth.ValidateJWT(bTok, cfg.secret)
+	if err != nil {
+		fmt.Println("invalid token:", err)
+		w.WriteHeader(401)
+		return
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := postUserBody{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		fmt.Println("error decoding params:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	shhh, err := auth.HashPassword(params.Password)
+	if err != nil {
+		fmt.Println("error hashing password:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	args := database.UpdateUserParams{
+		Email:          params.Email,
+		HashedPassword: getNullString(shhh),
+		ID:             userID,
+	}
+
+	result, err := cfg.db.UpdateUser(req.Context(), args)
+	if err != nil {
+		fmt.Println("error updating user:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	resUser := response{
+		ID:        result.ID.String(),
+		CreatedAt: result.CreatedAt.Time.String(),
+		UpdatedAt: result.UpdatedAt.Time.String(),
+		Email:     result.Email,
+	}
+
+	respondWithJson(w, 200, resUser)
+
+}

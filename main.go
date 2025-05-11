@@ -58,6 +58,7 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiConfig.handleLogin)
 	mux.HandleFunc("POST /api/refresh", apiConfig.handleRefresh)
 	mux.HandleFunc("POST /api/revoke", apiConfig.handleRevoke)
+	mux.HandleFunc("PUT /api/users", apiConfig.handlePutUser)
 
 	fmt.Println("Server starting on", "http://localhost"+PORT_STR)
 	err = server.ListenAndServe()
