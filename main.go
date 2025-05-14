@@ -19,6 +19,7 @@ type apiConfig struct {
 	hitCount atomic.Int32
 	db       *dbmod.Queries
 	secret   string
+	polkaKey string
 }
 
 type jsonRes struct {
@@ -33,11 +34,13 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	SECRET := os.Getenv("SECRET")
+	POLKA := os.Getenv("POLKA_KEY")
 	database, err := sql.Open("postgres", dbURL)
 	apiConfig := apiConfig{}
 
 	apiConfig.db = dbmod.New(database)
 	apiConfig.secret = SECRET
+	apiConfig.polkaKey = POLKA
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -59,8 +62,11 @@ func main() {
 	mux.HandleFunc("POST /api/refresh", apiConfig.handleRefresh)
 	mux.HandleFunc("POST /api/revoke", apiConfig.handleRevoke)
 	mux.HandleFunc("PUT /api/users", apiConfig.handlePutUser)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiConfig.handlerDeleteChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", apiConfig.handleChripyRedWebHook)
 
 	fmt.Println("Server starting on", "http://localhost"+PORT_STR)
+
 	err = server.ListenAndServe()
 	if err != nil {
 		fmt.Println(err)

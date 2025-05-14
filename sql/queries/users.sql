@@ -21,7 +21,18 @@ SET
 	hashed_password = $2
 WHERE id = $3
 
-RETURNING id, created_at, updated_at, email;
+RETURNING id, created_at, updated_at, email, is_chirpy_red;
+
+
+-- name: SetIsRed :one
+UPDATE users
+SET
+	updated_at = now(),
+	is_chirpy_red = $1
+WHERE id = $2
+
+RETURNING id, updated_at, is_chirpy_red;
+	
 
 
 

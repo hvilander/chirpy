@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hvilander/chirpy/internal/auth"
 	"github.com/hvilander/chirpy/internal/database"
 )
@@ -24,6 +25,7 @@ type response struct {
 	Email        string `json:"email"`
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
@@ -86,6 +88,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		Email:        user.Email,
 		Token:        token,
 		RefreshToken: savedRefreshToken.Token,
+		IsChirpyRed:  user.IsChirpyRed.Bool,
 	}
 
 	respondWithJson(w, 200, resUser)
@@ -127,10 +130,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 	}
 
 	responseBody := response{
-		ID:        user.ID.String(),
-		CreatedAt: user.CreatedAt.Time.String(),
-		UpdatedAt: user.UpdatedAt.Time.String(),
-		Email:     user.Email,
+		ID:          user.ID.String(),
+		CreatedAt:   user.CreatedAt.Time.String(),
+		UpdatedAt:   user.UpdatedAt.Time.String(),
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed.Bool,
 	}
 
 	respondWithJson(w, 201, responseBody)
@@ -249,12 +253,74 @@ func (cfg *apiConfig) handlePutUser(w http.ResponseWriter, req *http.Request) {
 	}
 
 	resUser := response{
-		ID:        result.ID.String(),
-		CreatedAt: result.CreatedAt.Time.String(),
-		UpdatedAt: result.UpdatedAt.Time.String(),
-		Email:     result.Email,
+		ID:          result.ID.String(),
+		CreatedAt:   result.CreatedAt.Time.String(),
+		UpdatedAt:   result.UpdatedAt.Time.String(),
+		Email:       result.Email,
+		IsChirpyRed: result.IsChirpyRed.Bool,
 	}
 
 	respondWithJson(w, 200, resUser)
+
+}
+
+type webhookData struct {
+	UserId string `json:"user_id"`
+}
+
+type redWebhookReq struct {
+	Event string      `json:"event"`
+	Data  webhookData `json:"data"`
+}
+
+func (cfg *apiConfig) handleChripyRedWebHook(w http.ResponseWriter, req *http.Request) {
+	apiKey, err := auth.GetAPIKey(req.Header)
+	fmt.Println("apikey:", apiKey, "cfg.polkaKey", cfg.polkaKey, "error:", err)
+	if err != nil || apiKey != cfg.polkaKey {
+		fmt.Println("apikey doesnt match, potential err:", err)
+		w.WriteHeader(401)
+		return
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := redWebhookReq{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		fmt.Println("error decoding params:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	}
+
+	//get user id
+	userID, err := uuid.Parse(params.Data.UserId)
+	if err != nil {
+		fmt.Println("error parsing user id:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	args := database.SetIsRedParams{
+		IsChirpyRed: sql.NullBool{Valid: true, Bool: true},
+		ID:          userID,
+	}
+
+	_, err = cfg.db.SetIsRed(req.Context(), args)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("no row error:", err)
+			w.WriteHeader(404)
+			return
+		}
+		fmt.Println("error writing to the db:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.WriteHeader(204)
 
 }

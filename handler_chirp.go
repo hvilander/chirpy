@@ -57,6 +57,11 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, req *http.Reque
 
 	c, err := cfg.db.GetChirpById(req.Context(), chirpUUID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("chirp not found")
+			w.WriteHeader(404)
+			return
+		}
 		fmt.Println("chirpUUID", chirpUUID)
 		fmt.Println("error querying chirp:", err)
 		w.WriteHeader(400)
@@ -142,5 +147,70 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	}
 
 	respondWithJson(w, 201, responseBody)
+
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, req *http.Request) {
+	// make sure access token is valid
+	bearer, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		fmt.Println("error getting BearerToken from header:", err)
+		w.WriteHeader(401)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(bearer, cfg.secret)
+	if err != nil {
+		fmt.Println("invalid token:", err)
+		w.WriteHeader(401)
+		return
+	}
+
+	// need to get chrip by id
+	chirpId := req.PathValue("chirpID")
+	if chirpId == "" {
+		fmt.Println("error getting chirp: no id provided")
+		w.WriteHeader(400)
+		return
+	}
+
+	chirpUUID, err := uuid.Parse(chirpId)
+	if err != nil {
+		fmt.Println("error getting chirp:", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	c, err := cfg.db.GetChirpById(req.Context(), chirpUUID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(404)
+			return
+		}
+		fmt.Println("chirpUUID", chirpUUID)
+		fmt.Println("error querying chirp:", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	chirpOwnerID := c.UserID.UUID
+
+	// make sure the user owns the chirp
+	if chirpOwnerID != userID {
+		fmt.Println("user is not owner of chrip they are trying to delete")
+		fmt.Println("user id: ", userID, "chrip owner:", chirpOwnerID)
+		w.WriteHeader(403)
+		return
+	}
+
+	err = cfg.db.DeleteChirpById(req.Context(), c.ID)
+	if err != nil {
+		fmt.Println("error deleting chirp:", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.WriteHeader(204)
+	return
 
 }
