@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/hvilander/chirpy/internal/auth"
@@ -88,6 +89,8 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 	var err error
 
 	authorID := req.URL.Query().Get("author_id")
+	sortDirection := req.URL.Query().Get("sort")
+
 	if authorID != "" {
 		userId, err := uuid.Parse(authorID)
 		if err != nil {
@@ -104,6 +107,14 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 		fmt.Println("error getting chiprs:", err)
 		w.WriteHeader(500)
 		return
+	}
+	//default is asc
+
+	if sortDirection == "desc" {
+		fmt.Println("sort direction desc")
+		slices.SortFunc(chirps, func(a, b database.Chirp) int {
+			return b.CreatedAt.Time.Compare(a.CreatedAt.Time)
+		})
 	}
 
 	resChirps := make([]chirpCreatedRes, len(chirps))
