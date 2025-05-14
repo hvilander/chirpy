@@ -8,6 +8,8 @@ RETURNING *;
 -- name: GetAllChirps :many
 SELECT * from chirps;
 
+-- name: GetAllChripsByUserId :many
+SELECT * from chirps where user_id = $1;
 
 -- name: GetChirpById :one
 SELECT * from chirps where id = $1;

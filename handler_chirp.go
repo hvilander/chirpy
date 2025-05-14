@@ -25,6 +25,10 @@ type chirpCreatedRes struct {
 	UserId    string `json:"user_id"`
 }
 
+type chirpGetReq struct {
+	AuthorID string `json:"author_id"`
+}
+
 func getNullUUID(id uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{
 		UUID:  id,
@@ -80,7 +84,22 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, req *http.Reque
 }
 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Request) {
-	chirps, err := cfg.db.GetAllChirps(req.Context())
+	var chirps []database.Chirp
+	var err error
+
+	authorID := req.URL.Query().Get("author_id")
+	if authorID != "" {
+		userId, err := uuid.Parse(authorID)
+		if err != nil {
+			fmt.Println("error parsing author id:", err)
+			w.WriteHeader(500)
+			return
+		}
+		chirps, err = cfg.db.GetAllChripsByUserId(req.Context(), getNullUUID(userId))
+	} else {
+		chirps, err = cfg.db.GetAllChirps(req.Context())
+	}
+
 	if err != nil {
 		fmt.Println("error getting chiprs:", err)
 		w.WriteHeader(500)
@@ -97,9 +116,7 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, req *http.Reque
 			UserId:    c.UserID.UUID.String(),
 		}
 	}
-
 	respondWithJson(w, 200, resChirps)
-
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
